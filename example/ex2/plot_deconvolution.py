@@ -13,7 +13,7 @@ for x in range(0,251,step_len):
 	wave = np.loadtxt(wave_filename)
 	data.append(wave[:,1])
 
-wave_filename = "ricker_acc.txt"
+wave_filename = "ricker_acc.dat"
 wave = np.loadtxt(wave_filename)
 time = wave[: ,0]
 

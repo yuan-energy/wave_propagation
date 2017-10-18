@@ -1,0 +1,16 @@
+// Format of Soil Profile:
+// Vs     rho      damp   thickness  
+500       2000     0.00   250
+500      2000     0.00 
+
+
+// The soil layer thickness is from surface to bottom.
+// User should NOT give thickness for the last layer.
+// Last layer is the bedrock. 
+
+
+
+
+// Comments of this Soil Profile:
+// 1. Words after //
+// 2. Words inside /*comments*/
