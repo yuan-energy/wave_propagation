@@ -57,7 +57,8 @@ public:
 	int add_compute_depth(double new_depth);
 
 
-	int compute();               // conduct the wave propagation.
+	int compute();               // conduct the wave propagation. Take the input motion as the total wave (upward + downward)
+	int compute_upward();        // conduct the upward wave propagation. Take the input motion as the upward wave.
 	int	deconvolution2bedrock(); // for equivalent rock outcropping: deconvolution to bedrock and reset motion.
 
 
@@ -73,7 +74,7 @@ public:
 	vector<double> const& get_vel_freq_by_depth(double depth) ;
 	vector<double> const& get_dis_freq_by_depth(double depth) ;
 
-	int write_wave_at_depth(double depth, string filename_prefix="wave_at_depth_") ;
+	int write_wave_at_depth(double depth, string filename_prefix="wave") ;
 
 	int get_Ntime() const;
 	int getTag() const;
@@ -151,6 +152,15 @@ private:
 		, std::vector<double> const& damp
 		, std::vector<double> const& layer_thick
 		, mat_complex* disp
+	);
+
+	int wave_propagation(double max_freq, int N_freq
+		, std::vector<double> const& Vs
+		, std::vector<double> const& rho
+		, std::vector<double> const& damp
+		, std::vector<double> const& layer_thick
+		, mat_complex* disp
+		, mat_complex* up
 	);
 
 	/* 

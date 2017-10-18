@@ -363,9 +363,129 @@ int WaveField::compute(){
 		p = time2freq(_time_step, _soil_vel[i]); _soil_vel_freq[i] = p.second; 
 		p = time2freq(_time_step, _soil_dis[i]); _soil_dis_freq[i] = p.second; 
 	}
-
+	// cout<<" WaveField::compute _soil_acc.size() = " <<  _soil_acc.size() <<endl;
+	// cout<<" WaveField::compute _soil_dis.size() = " <<  _soil_dis.size() <<endl;
+	// cerr<< "  _Ntime = " << _Ntime <<endl;
+	// print_vec<double>("times = ", _times);
+	// print_vec<double>("_input_acc = ", _input_acc);
 	return 1;
 }
+
+
+
+
+
+
+
+
+int WaveField::compute_upward(){
+	if (_soil_Vs.empty() || _soil_rho.empty() || _soil_damp.empty() || _soil_thick.empty()){
+		cerr<<" ERROR!! in WaveField::set_soil_profile: at least one soil properties is empty" << endl;
+		return -1;
+	}
+	if(!(
+		 _soil_Vs.size() == _soil_rho.size() 
+		 && _soil_rho.size() == _soil_damp.size()
+		 && _soil_damp.size() == (_soil_thick.size()+1)
+		)
+	){
+		cerr << " ERROR!!! in WaveField::compute. Soil properties Lengths mismatch!"<<"\n" ;
+		cerr << " Vs.size()     = " << _soil_Vs.size() << "\n" ;
+		cerr << " rho.size()    = " << _soil_rho.size() << "\n" ;
+		cerr << " damp.size()   = " << _soil_damp.size() << "\n" ;
+		cerr << " thicks.size() = " << _soil_thick.size() << "\n" ;
+		cerr << " ERROR may happened in WaveField::update_compute_layers \n" ;
+		return -1;
+	}
+	for (auto thick : _soil_thick){
+		if(thick <= SOILD_THICKNESS_TOLERANCE){
+			cerr<<"WaveField::compute() soil layer thickness is too small! \n " ; 
+			cerr<<" thick = " << thick  << endl;
+			cerr<<" STOP before cause numeric ERROR!. \n" ; 
+			return -1;
+		}
+	}
+	// cout<< "_max_freq = "<< _max_freq << endl;
+	// cout<< "_Ntime = "<< _Ntime << endl;
+	// print_vec<double>("_soil_Vs ", _soil_Vs);
+	// print_vec<double>("_soil_rho ", _soil_rho);
+	// print_vec<double>("_soil_damp ", _soil_damp);
+	// print_vec<double>("_soil_thick ", _soil_thick);
+	// print_vec<double>("_soil_depth ", _soil_depth);
+
+	int layernum = _soil_Vs.size();
+	auto total = new mat_complex(layernum, vec_complex(_Ntime)) ;
+	auto up = new mat_complex(layernum, vec_complex(_Ntime)) ;
+	this->wave_propagation(_max_freq, _Ntime
+		, _soil_Vs
+		, _soil_rho
+		, _soil_damp
+		, _soil_thick
+		, total
+		, up
+	);
+
+	auto DepthFreqAccAmp = mat_complex(layernum, vec_complex(_Ntime));
+	_soil_acc = vector<vector<double>>(layernum, vector<double>(_Ntime));
+	vec_complex input_acc_freq(_Ntime);
+	for (int i = 0; i < _Ntime; ++i){
+		input_acc_freq[i] = _input_acc[i] ;
+	}
+	this->fft(input_acc_freq);
+
+	auto it = lower_bound(_soil_depth.begin(), _soil_depth.end(), _motion_depth);
+	int motion_layer = it - _soil_depth.begin() ; 
+	// cout<<"motion_layer=" << motion_layer <<endl;
+	// cout<<"layernum=" << layernum <<endl;
+
+	// convolution for shallow soils
+	for (int i = 0; i < motion_layer ; ++i){
+		for (int j = 0; j < _Ntime ; ++j){
+			DepthFreqAccAmp[i][j] = (*total)[i][j] / (*up)[motion_layer][j] * input_acc_freq[j] ; 
+		}
+	}
+	// deconvolution for deeper soils (include itself, do nothing)
+	for (int i = motion_layer; i < layernum ; ++i){
+		for (int j = 0; j < _Ntime ; ++j){
+			DepthFreqAccAmp[i][j] = (*up)[motion_layer][j] / (*total)[i][j] * input_acc_freq[j] ; 
+		}
+	}
+	delete total;
+	delete up;
+	for (int i = 0; i < layernum ; ++i){
+		this->ifft( DepthFreqAccAmp[i] ) ; 
+	}
+
+	// change back to time domain
+	for (int i = 0; i < layernum ; ++i){
+		for (int j = 0; j < _Ntime; ++j){
+			_soil_acc[i][j] = real(DepthFreqAccAmp[i][j]) ; 
+		}
+	}
+
+	// calculate the velocity
+	_soil_vel = vector<vector<double>>(layernum, vector<double>(_Ntime));
+	_soil_dis = vector<vector<double>>(layernum, vector<double>(_Ntime));
+	_soil_acc_freq = vector<vector<double>>(layernum);
+	_soil_vel_freq = vector<vector<double>>(layernum);
+	_soil_dis_freq = vector<vector<double>>(layernum);
+	pair<vector<double>, vector<double>> p ;
+	for (int i = 0; i < layernum; ++i){
+		_soil_vel[i] = integrate_vel(_time_step, _soil_acc[i]);
+		_soil_dis[i] = integrate_dis(_time_step, _soil_acc[i], _soil_vel[i]);
+		p = time2freq(_time_step, _soil_acc[i]); _soil_acc_freq[i] = p.second; 
+		p = time2freq(_time_step, _soil_vel[i]); _soil_vel_freq[i] = p.second; 
+		p = time2freq(_time_step, _soil_dis[i]); _soil_dis_freq[i] = p.second; 
+	}
+	// cout<<" WaveField::compute _soil_acc.size() = " <<  _soil_acc.size() <<endl;
+	// cout<<" WaveField::compute _soil_dis.size() = " <<  _soil_dis.size() <<endl;
+	// cerr<< "  _Ntime = " << _Ntime <<endl;
+	// print_vec<double>("times = ", _times);
+	// print_vec<double>("_input_acc = ", _input_acc);
+	return 1;
+}
+
+
 
 /********************************************************************************
 *	Purpose of deconvolution2bedrock() is for equivalent rock outcropping: 
@@ -640,9 +760,9 @@ int WaveField::write_wave_at_depth(double depth, string prefix){
 	auto vel = get_vel_by_depth(depth);
 	auto dis = get_dis_by_depth(depth);
 
-	this->write_series_to_file(_times, acc, prefix+to_short_string(depth)+"_acc.txt");
-	this->write_series_to_file(_times, vel, prefix+to_short_string(depth)+"_vel.txt");
-	this->write_series_to_file(_times, dis, prefix+to_short_string(depth)+"_dis.txt");
+	this->write_series_to_file(_times, acc, prefix+ "_at_depth_" + to_short_string(depth)+"_acc.txt");
+	this->write_series_to_file(_times, vel, prefix+ "_at_depth_" + to_short_string(depth)+"_vel.txt");
+	this->write_series_to_file(_times, dis, prefix+ "_at_depth_" + to_short_string(depth)+"_dis.txt");
 
 	return 1;
 }
@@ -768,6 +888,124 @@ int WaveField::wave_propagation(double max_freq, int N_freq
 }
 
 
+
+
+
+
+
+
+
+
+
+
+// **********************************************************************************
+// Vs          : vector of shear wave velocities of the soil layers, 
+//                  top one first - bedrock last 
+//                  [Vstop ... Vsbottom Vsbedrock]
+// rho         : vector of the unit weight of the soil layers, 
+//                  top one first - bedrock last
+//                  [rhotop ... rhobottom rhobedrock]
+// damp        : vector of the material damping of the soil layers, 
+//                  top one first - bedrock last 
+//                  [ksitop ... ksibottom ksibedrock]
+// freq        : vector of the frequencies of interest
+//                  [0:df:(N-1)*df] 
+// layer_thick : vector with the thickness of the layers, top one first    
+//                  [Htop ... Hbottom]
+// % EXAMPLE:
+// f0   = 0;
+// Fs   = 100;  % (in Hz) Frequency sample
+// NFFT = 2^12; % number of frequencies for discretization
+// 
+// input.Vs          = [200 300 2000];      % (m/s)
+// input.rho         = [2000 2100 2400];    % (kgr/m3)
+// input.damp        = [0.04 0.03 0.01];    % 
+// input.layer_thick = [10 10];             % (m) ! no thickness for bedrock!
+// **********************************************************************************
+int WaveField::wave_propagation(double max_freq, int N_freq
+	, std::vector<double> const& Vs
+	, std::vector<double> const& rho
+	, std::vector<double> const& damp
+	, std::vector<double> const& layer_thick
+	, mat_complex* disp
+	, mat_complex* up
+)
+{
+
+	int layernum = Vs.size();
+
+	std::vector<double> freq(N_freq);
+	std::iota(freq.begin(), freq.end(), 0);
+	for(auto& item: freq){
+		item = item / (N_freq - 1) * max_freq ; 
+	}
+
+	std::vector<double> omega(N_freq)  ;
+	for (int i = 0; i < N_freq; ++i){
+		omega[i] = 2 * WaveField::pi * freq[i] ; 
+	}
+	std::complex<double> i1(0, 1);
+
+	vec_complex Vsstar(layernum);
+	for (int i = 0; i < layernum; ++i){
+		Vsstar[i] = Vs[i] * ( 1. + i1 * damp[i] );
+	}
+
+	vec_complex az(layernum-1);
+	for (int i = 0; i < layernum-1 ; ++i){
+		az[i] = (rho[i]/rho[i+1]) * (Vsstar[i]/Vsstar[i+1]) ; 
+	}
+
+	auto kstar = new mat_complex(layernum, vec_complex(N_freq)) ;
+	// auto up = new mat_complex(layernum, vec_complex(N_freq)) ;
+	auto down = new mat_complex(layernum, vec_complex(N_freq)) ;
+	
+
+	for (int i = 0; i < layernum; ++i){
+		for (int j = 0; j < N_freq; ++j){
+			(*kstar)[i][j] = omega[j] / Vsstar[i] ; 
+
+			if( i == 0 ){
+				(*up)[i][j] = 0.5 * exp( i1 * (*kstar)[i][j] * layer_thick[i])
+					+ 0.5 * exp( -i1 * (*kstar)[i][j] * layer_thick[i]) ;
+				(*down)[i][j] = (*up)[i][j] ; 
+			}else{
+				(*up)[i][j] = 0.5 * (*up)[i-1][j] * (1. + az[i-1]) * exp( i1 * (*kstar)[i-1][j] * layer_thick[i-1])
+					+ 0.5 * (*down)[i-1][j] * (1. - az[i-1]) * exp( -i1 * (*kstar)[i-1][j] * layer_thick[i-1]);
+				(*down)[i][j] = 0.5 * (*up)[i-1][j] * (1. - az[i-1]) * exp( i1 * (*kstar)[i-1][j] * layer_thick[i-1])
+					+ 0.5 * (*down)[i-1][j] * (1. + az[i-1]) * exp( -i1 * (*kstar)[i-1][j] * layer_thick[i-1]);
+			}
+			(*disp)[i][j] = (*up)[i][j] + (*down)[i][j] ; 
+		}
+	}
+
+	int len ;
+	if( N_freq & 1 ){
+		len = ( N_freq -1 ) / 2 ;
+	}else{
+		len = ( N_freq -2 ) / 2 ;
+	}
+	std::vector<int> ia(len) ;
+	std::vector<int> ib(len) ;
+	for (int i = 0; i < len; ++i){
+		ia[i] = 1 + i ;
+		ib[i] = N_freq - i - 1 ;
+	}
+
+	for (int i = 0; i < layernum; ++i){
+		for (int j = 0; j < len; ++j){
+			(*up)[i][ib[j]] = std::conj((*up)[i][ia[j]]) ; 
+			(*down)[i][ib[j]] = std::conj((*down)[i][ia[j]]) ; 
+			(*disp)[i][ib[j]] = std::conj((*disp)[i][ia[j]]) ; 
+		}
+	}
+
+	delete kstar ; 
+	// delete up;
+	delete down;
+
+	return 1;
+}
 
 
 

@@ -1,11 +1,11 @@
 CC = g++ 
 CXXFLAGS = -std=c++11 -Wall -g
 SRC = \
-../src/WaveField.cpp
+../../src/WaveField.cpp
 
 INCLUDE_HEADER_LOCATION=\
--I../src/ \
--I../utils/
+-I../../src/ \
+-I../../utils/
 
 test_deconvolution: test_deconvolution.cpp ${SRC}
 	$(CC) -o test_deconvolution.out test_deconvolution.cpp ${CXXFLAGS} ${SRC} ${INCLUDE_HEADER_LOCATION}

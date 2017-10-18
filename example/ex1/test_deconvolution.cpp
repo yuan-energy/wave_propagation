@@ -17,12 +17,12 @@ int main(int argc, char const *argv[])
 	theField.set_soil_profile(soil_profile_fileName);
 
 	// For equivalent rock outcropping.
-	theField.deconvolution2bedrock();
+	// theField.deconvolution2bedrock();
 	
 	// *********************************************
 	// Compute
 	// *********************************************
-	vector<double> request_depths = {10, 30, 50};
+	vector<double> request_depths = {10, 30, 50, 70};
 	for (auto& d: request_depths){
 		theField.add_compute_depth(d);
 	}
