@@ -38,10 +38,17 @@ public:
 
 	WaveField();
 	WaveField(int tag);
-	int set_motions(string const& filename 
-		, double acc_unit_scale = 1.0 );
-	int set_motions(vector<double> const& times, vector<double> const& acceleration);
+	int set_motions(
+		string const& filename_acc 
+		, string const& filename_dis
+		, double acc_unit_scale = 1.0
+		, double dis_unit_scale = 1.0
+		);
+	int set_motions(vector<double> const& times, vector<double> const& acc, vector<double> const& dis );
 	int set_motion_depth(double motion_depth, double depth_unit_scale = 1.0 );
+
+	int set_motion_compensation_time(double add_compensation_time);
+
 	int set_soil_profile(string const& filename
 		, double Vs_unit_scale = 1.0
 		, double rho_unit_scale = 1.0
@@ -99,6 +106,7 @@ private:
 	// Input Motions (Acceleration)
 	vector<double> _times;
 	vector<double> _input_acc;
+	vector<double> _input_dis;
 	double _time_step ;
 	double _motion_depth ;
 	double _max_time ;

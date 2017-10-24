@@ -26,7 +26,7 @@ plt.legend()
 plt.grid()
 plt.yticks([])
 plt.xlabel("Times/(s)")
-plt.savefig("deconvolution.jpg")
+plt.savefig("upward_wave.jpg")
 plt.show()
 
 

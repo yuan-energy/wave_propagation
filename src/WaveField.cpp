@@ -26,29 +26,48 @@ int WaveField::set_motion_depth(double motion_depth
 	, double depth_unit_scale)
 {
 	if( motion_depth < - machina_epsilon ){
-		cerr << " ERROR!!! in WaveField::add_compute_depth.  \n";
+		cerr << " ERROR!!! in WaveField::set_motion_depth.  \n";
 		cerr << " The motion_depth cannot be smaller than zero! \n";
 		cerr << " motion_depth = " << motion_depth << endl;
 		return -1;
 	}
 	_motion_depth = motion_depth * depth_unit_scale;
+
+	if( fabs(_motion_depth) > machina_epsilon  && !_soil_Vs.empty()){
+		this->add_compute_depth(_motion_depth);
+	}
 	return 1;
 }
 
-int WaveField::set_motions(string const& filename
-	, double acc_unit_scale
-	){
+int WaveField::set_motions(
+	string const& filename_acc 
+	, string const& filename_dis
+	, double acc_unit_scale 
+	, double dis_unit_scale 
+	)
+{
+
 	ifstream the_motionFile;
-	the_motionFile.open(filename.c_str());
+	the_motionFile.open(filename_acc.c_str());
 	if (!the_motionFile.is_open()){
 	    cerr << "ERROR!!! - WaveField::set_motions()";
-	    cerr << " - could not open motion file: " << filename << endl;
+	    cerr << " - could not open acceleration file: " << filename_acc << endl;
 	    return -1;
 	}
 	string word; 
 	int count = 0;
 	vector<double> times, acceleration ;
-	while(the_motionFile >> word){
+
+	// convert the whole file into a big string
+	std::stringstream buffer;
+	buffer << the_motionFile.rdbuf();
+	string input = buffer.str();
+	// remove comments
+	string cleaned_input = this->removeComments(input);
+	// pass to stringstream
+	stringstream ss(cleaned_input);
+
+	while(ss >> word){
 		if(count&1){
 			acceleration.push_back(stof(word));
 		}else{
@@ -57,12 +76,54 @@ int WaveField::set_motions(string const& filename
 		count++;
 	}
 	if(acceleration.size() != times.size()){
-		cerr<< "ERROR!!! in User input file: "<< filename <<" \n\t time - acc length mismatch! " << endl;
+		cerr<< "ERROR!!! in User input file: "<< filename_acc <<" \n\t time - acc length mismatch! " << endl;
+		return -1;
 	}
 	for (auto& item: acceleration){
 		item *= acc_unit_scale;
 	}
-	return this->set_motions(times, acceleration);
+	the_motionFile.close();
+
+	// **********************************
+	// Displacement
+	// **********************************
+	the_motionFile.open(filename_dis.c_str());
+	if (!the_motionFile.is_open()){
+	    cerr << "ERROR!!! - WaveField::set_motions()";
+	    cerr << " - could not open displacement file: " << filename_dis << endl;
+	    return -1;
+	}
+	// convert the whole file into a big string
+	buffer.str(std::string()); // clear the buffer
+	buffer << the_motionFile.rdbuf();
+	input = buffer.str();
+	// remove comments
+	cleaned_input = this->removeComments(input);
+	// pass to stringstream
+	ss = stringstream(cleaned_input);
+
+	count = 0;
+	vector<double> displacement ;
+	while(ss >> word){
+		if(count&1){
+			displacement.push_back(stof(word));
+		}
+		count++;
+	}
+	if(displacement.size() != acceleration.size()){
+		cerr<< "ERROR!!! in User input file: "<< filename_dis <<" \n\t acc - dis length mismatch! " << endl;
+		cerr<< " displacement.size() = " << displacement.size()  << endl;
+		cerr<< " acceleration.size() = " << acceleration.size()  << endl;
+		return -1;
+	}
+	for (auto& item: displacement){
+		item *= acc_unit_scale;
+	}
+	the_motionFile.close();
+
+
+
+	return this->set_motions(times, acceleration, displacement);
 	
 }
 
@@ -179,10 +240,11 @@ int WaveField::set_soil_profile(vector<double> const& Vs
 	return 1;
 }
 
-int WaveField::set_motions(vector<double> const& times, vector<double> const& acceleration)
+int WaveField::set_motions(vector<double> const& times, vector<double> const& acceleration, vector<double> const& displacement)
 {
 	_times = times;
 	_input_acc = acceleration;
+	_input_dis = displacement;
 	_Ntime = times.size() ;
 
 	if( _Ntime < 2 ){
@@ -200,14 +262,58 @@ int WaveField::set_motions(vector<double> const& times, vector<double> const& ac
 	_max_freq = 1./_time_step ; 
 	_max_time = times.back() ; 
 
-	if( fabs(_motion_depth) > machina_epsilon  && !_soil_Vs.empty()){
-		this->add_compute_depth(_motion_depth);
+	int Nfreq = _Ntime/2 + 1 ; 
+	_freqs.resize(Nfreq);
+	double max_freq = 1. / _time_step ;
+	std::iota(_freqs.begin(), _freqs.end(), 0);
+	for(auto& item: _freqs){
+		item = item / (Nfreq-1) * max_freq ; 
 	}
 
 	return 1;
 }
 
+int WaveField::set_motion_compensation_time(double add_compensation_time){
+	int N_add_step = floor(add_compensation_time / _time_step)  ;
+	vector<double> prefix_time(N_add_step,0.);
+	for (int i = 0; i < N_add_step; ++i){
+		prefix_time[i] =  _time_step * i ; 
+	}
+	vector<double> suffix_time(N_add_step,0.);
+	for (int i = 0; i < N_add_step; ++i){
+		suffix_time[i] =  _time_step * (i + 1) + _max_time + add_compensation_time   ; 
+	}
+	for (auto& t: _times){
+		t += add_compensation_time ;
+	}
+	_times.insert(_times.begin(), prefix_time.begin(), prefix_time.end()) ; 
+	_times.insert(_times.end(), suffix_time.begin(), suffix_time.end()) ; 
+
+	vector<double> zero_arr(N_add_step,0.);
+	_input_acc.insert(_input_acc.begin(), zero_arr.begin(), zero_arr.end()) ; 
+	_input_acc.insert(_input_acc.end(), zero_arr.begin(), zero_arr.end()) ; 
+
+	_input_dis.insert(_input_dis.begin(), zero_arr.begin(), zero_arr.end()) ; 
+	_input_dis.insert(_input_dis.end(), zero_arr.begin(), zero_arr.end()) ; 
+
+
+	_max_time = _times.back() ; 
+	_Ntime = (int) _times.size(); 
+
+	DEBUG_MSG("_max_time            = " << _max_time ) ; 
+	DEBUG_MSG("_Ntime               = " << _Ntime ) ; 
+	DEBUG_MSG("_time_step           = " << _time_step ) ; 
+	DEBUG_MSG("add_compensation_time= " << add_compensation_time ) ; 
+	DEBUG_MSG("N_add_step           = " << N_add_step ) ; 
+	DEBUG_MSG("prefix_time.back()   = " << prefix_time.back() ) ; 
+
+	return 1;
+}
+
+
 int WaveField::add_compute_depth(double new_depth){
+	// DEBUG_MSG(" WaveField::add_compute_depth new_depth = " << new_depth) ; 
+	// cerr <<" WaveField::add_compute_depth new_depth = " << new_depth ; 
 	for (auto d: _soil_depth){
 		if ( fabs(new_depth - d) <= SOILD_THICKNESS_TOLERANCE )	{
 			// cout<<"hi" <<endl;
@@ -225,7 +331,11 @@ int WaveField::add_compute_depth(double new_depth){
 		cerr << " new_depth = " << new_depth << endl;
 		return -1;
 	}
-	
+	if (_soil_Vs.empty() || _soil_rho.empty() || _soil_damp.empty() || _soil_thick.empty()){
+		cerr<<" ERROR!! in WaveField::add_compute_depth: at least one soil properties is empty" << endl;
+		cerr<<" ERROR!! WaveField # " << _theTag <<" is not fully initialized! " << endl ; 
+		return -1;
+	}
 
 	_soil_depth.push_back(INT_MAX); 
 	
@@ -315,12 +425,19 @@ int WaveField::compute(){
 	);
 
 	auto DepthFreqAccAmp = mat_complex(layernum, vec_complex(_Ntime));
+	auto DepthFreqDisAmp = mat_complex(layernum, vec_complex(_Ntime));
+	
 	_soil_acc = vector<vector<double>>(layernum, vector<double>(_Ntime));
+	_soil_dis = vector<vector<double>>(layernum, vector<double>(_Ntime));
+
 	vec_complex input_acc_freq(_Ntime);
+	vec_complex input_dis_freq(_Ntime);
 	for (int i = 0; i < _Ntime; ++i){
 		input_acc_freq[i] = _input_acc[i] ;
+		input_dis_freq[i] = _input_dis[i] ;
 	}
 	this->fft(input_acc_freq);
+	this->fft(input_dis_freq);
 
 	auto it = lower_bound(_soil_depth.begin(), _soil_depth.end(), _motion_depth);
 	int motion_layer = it - _soil_depth.begin() ; 
@@ -329,36 +446,39 @@ int WaveField::compute(){
 	for (int i = 0; i < motion_layer ; ++i){
 		for (int j = 0; j < _Ntime ; ++j){
 			DepthFreqAccAmp[i][j] = (*field)[motion_layer][j] / (*field)[i][j] * input_acc_freq[j] ; 
+			DepthFreqDisAmp[i][j] = (*field)[motion_layer][j] / (*field)[i][j] * input_dis_freq[j] ; 
 		}
 	}
 	// deconvolution for deeper soils (include itself, do nothing)
 	for (int i = motion_layer; i < layernum ; ++i){
 		for (int j = 0; j < _Ntime ; ++j){
 			DepthFreqAccAmp[i][j] = (*field)[i][j] / (*field)[motion_layer][j] * input_acc_freq[j] ; 
+			DepthFreqDisAmp[i][j] = (*field)[i][j] / (*field)[motion_layer][j] * input_dis_freq[j] ; 
 		}
 	}
 	delete field;
 	for (int i = 0; i < layernum ; ++i){
 		this->ifft( DepthFreqAccAmp[i] ) ; 
+		this->ifft( DepthFreqDisAmp[i] ) ; 
 	}
 
 	// change back to time domain
 	for (int i = 0; i < layernum ; ++i){
 		for (int j = 0; j < _Ntime; ++j){
 			_soil_acc[i][j] = real(DepthFreqAccAmp[i][j]) ; 
+			_soil_dis[i][j] = real(DepthFreqDisAmp[i][j]) ; 
 		}
 	}
 
 	// calculate the velocity
 	_soil_vel = vector<vector<double>>(layernum, vector<double>(_Ntime));
-	_soil_dis = vector<vector<double>>(layernum, vector<double>(_Ntime));
+	
 	_soil_acc_freq = vector<vector<double>>(layernum);
 	_soil_vel_freq = vector<vector<double>>(layernum);
 	_soil_dis_freq = vector<vector<double>>(layernum);
 	pair<vector<double>, vector<double>> p ;
 	for (int i = 0; i < layernum; ++i){
 		_soil_vel[i] = integrate_vel(_time_step, _soil_acc[i]);
-		_soil_dis[i] = integrate_dis(_time_step, _soil_acc[i], _soil_vel[i]);
 		p = time2freq(_time_step, _soil_acc[i]); _soil_acc_freq[i] = p.second; 
 		p = time2freq(_time_step, _soil_vel[i]); _soil_vel_freq[i] = p.second; 
 		p = time2freq(_time_step, _soil_dis[i]); _soil_dis_freq[i] = p.second; 
@@ -733,6 +853,7 @@ void WaveField::setTag(int newTag){
 }
 
 int WaveField::depth2layer(double depth){
+	depth = fabs(depth) ;
 	auto it = lower_bound(_soil_depth.begin(), _soil_depth.end(), depth);
 	if ( *it - depth > SOILD_THICKNESS_TOLERANCE ){
 		if(depth<0){

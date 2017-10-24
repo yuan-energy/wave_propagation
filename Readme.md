@@ -8,7 +8,9 @@ As long as the motion at a certain depth is known, the motions at all other dept
 
 #### Run the example
 ```bash
-cd ./example
+cd ./example/ex1
+./run_test_deconv.sh
+cd ../ex2
 ./run_test_deconv.sh
 ```
 
@@ -22,7 +24,18 @@ cd ./example
 * Build multi-direction wave fields to interact with other classes.
 
 
-#### Contain Useful Helper
+#### Examples
+
+
+**Result: deconvolution **
+
+ ![Deconvolution example](./example/ex1/deconvolution.jpg)
+
+**Result: upward wave propagation ** 
+
+ ![Upward Wave Propagation example](./example/ex2/upward_wave.jpg)
+
+#### Useful Helper
 - FFT and inverse FFT by C++ and std::complex.
 - Remove Comments for C/C++ Code by C++ code.
 

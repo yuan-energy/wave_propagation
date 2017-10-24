@@ -8,11 +8,12 @@ int main(int argc, char const *argv[])
 	// *********************************************
 	// Input
 	// *********************************************
-	string motion_fileName = "ricker_acc.dat";
+	string acc_fileName = "ricker_acc.dat";
+	string dis_fileName = "ricker_dis.dat";
 	string soil_profile_fileName = "soil_profile.dat";
 	double motion_depth = 250. ;
 	WaveField theField ; 
-	theField.set_motions(motion_fileName);
+	theField.set_motions(acc_fileName, dis_fileName);
 	theField.set_motion_depth(motion_depth);
 	theField.set_soil_profile(soil_profile_fileName);
 
