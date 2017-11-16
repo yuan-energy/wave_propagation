@@ -1,7 +1,7 @@
 // Format of Soil Profile:
 // Vs     rho      damp   thickness  
-500       2000     0.0   1000
-3000      3000     0.0 
+500       2000     0.00   500
+3000      2000     0.00 
 
 
 // The soil layer thickness is from surface to bottom.

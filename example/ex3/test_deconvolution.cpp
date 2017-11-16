@@ -28,8 +28,8 @@ int main(int argc, char const *argv[])
 	}
 
 
-	// theField.compute_upward();
-	theField.compute();
+	theField.compute_upward();
+	// theField.compute();
 
 
 

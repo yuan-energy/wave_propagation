@@ -442,15 +442,8 @@ int WaveField::compute(){
 	auto it = lower_bound(_soil_depth.begin(), _soil_depth.end(), _motion_depth);
 	int motion_layer = it - _soil_depth.begin() ; 
 
-	// convolution for shallow soils
-	for (int i = 0; i < motion_layer ; ++i){
-		for (int j = 0; j < _Ntime ; ++j){
-			DepthFreqAccAmp[i][j] = (*field)[motion_layer][j] / (*field)[i][j] * input_acc_freq[j] ; 
-			DepthFreqDisAmp[i][j] = (*field)[motion_layer][j] / (*field)[i][j] * input_dis_freq[j] ; 
-		}
-	}
-	// deconvolution for deeper soils (include itself, do nothing)
-	for (int i = motion_layer; i < layernum ; ++i){
+	// 
+	for (int i = 0; i < layernum ; ++i){
 		for (int j = 0; j < _Ntime ; ++j){
 			DepthFreqAccAmp[i][j] = (*field)[i][j] / (*field)[motion_layer][j] * input_acc_freq[j] ; 
 			DepthFreqDisAmp[i][j] = (*field)[i][j] / (*field)[motion_layer][j] * input_dis_freq[j] ; 
@@ -558,16 +551,10 @@ int WaveField::compute_upward(){
 	// cout<<"motion_layer=" << motion_layer <<endl;
 	// cout<<"layernum=" << layernum <<endl;
 
-	// convolution for shallow soils
-	for (int i = 0; i < motion_layer ; ++i){
+
+	for (int i = 0; i < layernum ; ++i){
 		for (int j = 0; j < _Ntime ; ++j){
-			DepthFreqAccAmp[i][j] = (*total)[i][j] / (*up)[motion_layer][j] * input_acc_freq[j] ; 
-		}
-	}
-	// deconvolution for deeper soils (include itself, do nothing)
-	for (int i = motion_layer; i < layernum ; ++i){
-		for (int j = 0; j < _Ntime ; ++j){
-			DepthFreqAccAmp[i][j] = (*up)[motion_layer][j] / (*total)[i][j] * input_acc_freq[j] ; 
+			DepthFreqAccAmp[i][j] = (*up)[i][j] / (*total)[motion_layer][j] * input_acc_freq[j] ; 
 		}
 	}
 	delete total;
