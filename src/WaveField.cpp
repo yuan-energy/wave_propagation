@@ -182,7 +182,9 @@ int WaveField::set_soil_profile(string const& filename
 	// print_vec("rho = ", rho);
 	// print_vec("damp = ", damp);
 	// print_vec("thickness = ", thickness);
-
+	theFile.sync();
+	buffer.flush();
+	ss.flush();
 	return this->set_soil_profile(Vs, rho, damp, thickness) ;
 }
 
@@ -305,7 +307,7 @@ int WaveField::set_motion_compensation_time(double add_compensation_time){
 	DEBUG_MSG("_time_step           = " << _time_step ) ; 
 	DEBUG_MSG("add_compensation_time= " << add_compensation_time ) ; 
 	DEBUG_MSG("N_add_step           = " << N_add_step ) ; 
-	DEBUG_MSG("prefix_time.back()   = " << prefix_time.back() ) ; 
+	// DEBUG_MSG("prefix_time.back()   = " << prefix_time.back() ) ; 
 
 	return 1;
 }
@@ -442,7 +444,7 @@ int WaveField::compute(){
 	auto it = lower_bound(_soil_depth.begin(), _soil_depth.end(), _motion_depth);
 	int motion_layer = it - _soil_depth.begin() ; 
 
-	// 
+	// Scale up/down based on the motion layer.
 	for (int i = 0; i < layernum ; ++i){
 		for (int j = 0; j < _Ntime ; ++j){
 			DepthFreqAccAmp[i][j] = (*field)[i][j] / (*field)[motion_layer][j] * input_acc_freq[j] ; 
@@ -551,12 +553,13 @@ int WaveField::compute_upward(){
 	// cout<<"motion_layer=" << motion_layer <<endl;
 	// cout<<"layernum=" << layernum <<endl;
 
-
+	// Scale up/down based on the motion layer.
 	for (int i = 0; i < layernum ; ++i){
 		for (int j = 0; j < _Ntime ; ++j){
-			DepthFreqAccAmp[i][j] = (*up)[i][j] / (*total)[motion_layer][j] * input_acc_freq[j] ; 
+			DepthFreqAccAmp[i][j] = (*total)[i][j] / (*up)[motion_layer][j] * input_acc_freq[j] ; 
 		}
 	}
+
 	delete total;
 	delete up;
 	for (int i = 0; i < layernum ; ++i){
@@ -763,12 +766,13 @@ vector<double> WaveField::get_acc_by_depth(double depth, size_t pos, size_t len)
 		cerr<<"ERROR!!! in WaveField::get_acc_by_depth Empty Results\n";
 		cerr<<"Please set the motions, soil profile and compute first!"<<endl;
 	}
-	if (pos + len > _soil_acc[0].size())	{
-		cerr<<"ERROR!!! in WaveField::get_acc_by_depth exceed vector boundary \n";
-		cerr<<" pos + len = " << pos + len << "\n";
-		cerr<<"  _soil_acc[0].size() = " <<  _soil_acc[0].size() <<endl;
-	}
 	auto result =  _soil_acc[depth2layer(depth)] ; 
+	if( pos > _soil_acc[0].size() ){
+		return std::vector<double>( len, 0. );
+	}else if ( pos + len > _soil_acc[0].size() )	{
+		size_t N_extra = pos + len  - _soil_acc[0].size() ; 
+		result.insert( result.end(), N_extra, 0. ) ; 
+	}
 	return vector<double>(result.begin()+pos, result.begin()+pos+len) ;
 }
 vector<double> WaveField::get_vel_by_depth(double depth, size_t pos, size_t len) {
@@ -776,12 +780,13 @@ vector<double> WaveField::get_vel_by_depth(double depth, size_t pos, size_t len)
 		cerr<<"ERROR!!! in WaveField::get_vel_by_depth Empty Results\n";
 		cerr<<"Please set the motions, soil profile and compute first!"<<endl;
 	}
-	if (pos + len > _soil_vel[0].size())	{
-		cerr<<"ERROR!!! in WaveField::get_vel_by_depth exceed vector boundary \n";
-		cerr<<" pos + len = " << pos + len << "\n";
-		cerr<<"  _soil_vel[0].size() = " <<  _soil_vel[0].size() <<endl;
-	}
 	auto result =  _soil_vel[depth2layer(depth)] ; 
+	if( pos > _soil_vel[0].size() ){
+		return std::vector<double>( len, 0. );
+	}else if ( pos + len > _soil_vel[0].size() )	{
+		size_t N_extra = pos + len  - _soil_vel[0].size() ; 
+		result.insert( result.end(), N_extra, 0. ) ; 
+	}
 	return vector<double>(result.begin()+pos, result.begin()+pos+len) ;
 }
 vector<double> WaveField::get_dis_by_depth(double depth, size_t pos, size_t len) {
@@ -789,12 +794,13 @@ vector<double> WaveField::get_dis_by_depth(double depth, size_t pos, size_t len)
 		cerr<<"ERROR!!! in WaveField::get_dis_by_depth Empty Results\n";
 		cerr<<"Please set the motions, soil profile and compute first!"<<endl;
 	}
-	if (pos + len > _soil_dis[0].size())	{
-		cerr<<"ERROR!!! in WaveField::get_dis_by_depth exceed vector boundary \n";
-		cerr<<" pos + len = " << pos + len << "\n";
-		cerr<<"  _soil_dis[0].size() = " <<  _soil_dis[0].size() <<endl;
-	}
 	auto result =  _soil_dis[depth2layer(depth)] ; 
+	if( pos > _soil_dis[0].size() ){
+		return std::vector<double>( len, 0. );
+	}else if ( pos + len > _soil_dis[0].size() )	{
+		size_t N_extra = pos + len  - _soil_dis[0].size() ; 
+		result.insert( result.end(), N_extra, 0. ) ; 
+	}
 	return vector<double>(result.begin()+pos, result.begin()+pos+len) ;
 }
 
@@ -1288,3 +1294,140 @@ string WaveField::removeComments(string prgm)
     return res;
 }
 
+
+
+// int WaveField::send_vector(int commitTag, Channel & theChannel, std::vector<double> const& data, 
+// 	std::string const& data_name ){
+// 	Vector cache( const_cast<double*>( &data.at(0) ) , data.size() );
+// 	if ( theChannel.sendVector( 0, commitTag, cache ) < 0 ){
+// 	    cerr << "WARNING WaveField::sendSelf() - " << this->getTag() << " failed to send "<< data_name << " \n";
+// 	    return -1;
+// 	}
+// 	return 1;
+// }
+
+// int WaveField::sendSelf( int commitTag, Channel &theChannel){
+// 	// cerr << " WaveField::sendSelf is called " << endl;
+//     Vector combined_data(6);
+//     combined_data(0) = (double) _theTag ;
+//     combined_data(1) = _time_step ;
+//     combined_data(2) = _motion_depth ;
+//     combined_data(3) = _max_time ;
+//     combined_data(4) = _max_freq ;
+//     combined_data(5) = (double) _Ntime ;
+
+//     int num_of_vector = 8 ;
+    
+//     ID size_data(num_of_vector);
+
+//     size_data(0) = _soil_Vs.size();
+//     size_data(1) = _soil_rho.size();
+//     size_data(2) = _soil_damp.size();
+//     size_data(3) = _soil_thick.size();
+//     size_data(4) = _soil_depth.size();
+//     size_data(5) = _times.size();
+//     size_data(6) = _input_acc.size();
+//     size_data(7) = _input_dis.size();
+
+//     if ( theChannel.sendVector( 0, commitTag, combined_data ) < 0 ){
+//         cerr << "WARNING WaveField::sendSelf() - " << this->getTag() << " failed to send combined_data \n";
+//         return -1;
+//     }
+
+//     if ( theChannel.sendID( 0, commitTag, size_data ) < 0 ){
+//         cerr << "WARNING WaveField::sendSelf() - " << this->getTag() << " failed to send size_data \n";
+//         return -1;
+//     }
+
+//     // cerr<< " WaveField::sendSelf   _theTag = " << _theTag  << endl;
+//     // cerr<< " WaveField::sendSelf _max_time = " << _max_time  << endl;
+//     // cerr<< " WaveField::sendSelf _soil_Vs.size() = " << _soil_Vs.size()  << endl;
+
+//     int ans = 0 ; 
+//     ans += this->send_vector(commitTag, theChannel, _soil_Vs, "soil_Vs");
+//     ans += this->send_vector(commitTag, theChannel, _soil_rho, "soil_rho" ) ; 
+//     ans += this->send_vector(commitTag, theChannel, _soil_damp, "soil_damp" ) ; 
+//     ans += this->send_vector(commitTag, theChannel, _soil_thick, "soil_thick" ) ; 
+//     ans += this->send_vector(commitTag, theChannel, _soil_depth, "soil_depth" ) ; 
+//     ans += this->send_vector(commitTag, theChannel, _times, "times" ) ; 
+//     ans += this->send_vector(commitTag, theChannel, _input_acc, "input_acc" ) ; 
+//     ans += this->send_vector(commitTag, theChannel, _input_dis, "input_dis" ) ; 
+
+//     if (ans < num_of_vector){
+//     	cerr<<"WaveField::sendSelf failed to send " <<endl;
+//     	return -1;
+//     }
+//     return 1;
+// }
+
+
+// int WaveField::receive_vector(int commitTag, Channel & theChannel, std::vector<double> & data , 
+// 	std::string const& data_name ){
+// 	Vector cache( data.size() ) ; 
+// 	if ( theChannel.receiveVector( 0, commitTag, cache ) < 0 ){
+// 	    cerr << "WARNING WaveField::sendSelf() - " << this->getTag() << " failed to receive "<< data_name << " \n";
+// 	    return -1;
+// 	}
+// 	memcpy( &data[0] , cache.getData() , sizeof(double)*data.size() );
+// 	return 1;
+// }
+
+
+// int WaveField::receiveSelf(int commitTag, Channel &theChannel, FEM_ObjectBroker
+//                       &theBroker  )
+// {
+// 	// cerr << " WaveField::receiveSelf is called " << endl;
+// 	Vector combined_data(6);
+// 	if ( theChannel.receiveVector( 0, commitTag, combined_data ) < 0 ){
+// 	    cerr << "WARNING WaveField::receiveSelf() - " << this->getTag() << " failed to receive combined_data \n";
+// 	    return -1;
+// 	}
+
+// 	_theTag       = (int) combined_data(0)  ;
+// 	_time_step    = combined_data(1)  ;
+// 	_motion_depth = combined_data(2)  ;
+// 	_max_time     = combined_data(3)  ;
+// 	_max_freq     = combined_data(4)  ;
+// 	_Ntime        = (int) combined_data(5)  ;
+
+// 	// cerr<< " WaveField::receiveSelf   _theTag = " << _theTag  << endl;
+// 	// cerr<< " WaveField::receiveSelf _max_time = " << _max_time  << endl;
+	
+
+// 	int num_of_vector = 8 ;
+// 	ID size_data(num_of_vector);
+// 	if ( theChannel.receiveID( 0, commitTag, size_data ) < 0 ){
+// 	    cerr << "WARNING WaveField::receiveSelf() - " << this->getTag() << " failed to receive size_data \n";
+// 	    return -1;
+// 	}
+
+// 	_soil_Vs.resize( size_data(0) );
+// 	_soil_rho.resize( size_data(1) );
+// 	_soil_damp.resize( size_data(2) );
+// 	_soil_thick.resize( size_data(3) );
+// 	_soil_depth.resize( size_data(4) );
+// 	_times.resize( size_data(5) );
+// 	_input_acc.resize( size_data(6) );
+// 	_input_dis.resize( size_data(7) );
+
+// 	// cerr<< " WaveField::receiveSelf _soil_Vs.size() = " << _soil_Vs.size()  << endl;
+	
+// 	int ans = 0 ; 
+// 	ans += this->receive_vector(commitTag, theChannel, _soil_Vs, "soil_Vs");
+// 	ans += this->receive_vector(commitTag, theChannel, _soil_rho, "soil_rho" ) ; 
+// 	ans += this->receive_vector(commitTag, theChannel, _soil_damp, "soil_damp" ) ; 
+// 	ans += this->receive_vector(commitTag, theChannel, _soil_thick, "soil_thick" ) ; 
+
+// 	ans += this->receive_vector(commitTag, theChannel, _soil_depth, "soil_depth" ) ; 
+// 	ans += this->receive_vector(commitTag, theChannel, _times, "times" ) ; 
+// 	ans += this->receive_vector(commitTag, theChannel, _input_acc, "input_acc" ) ; 
+// 	ans += this->receive_vector(commitTag, theChannel, _input_dis, "input_dis" ) ; 
+// 	if (ans < 8){
+// 		cerr<<"WaveField::receiveSelf failed to receive " <<endl;
+// 		return -1;
+// 	}
+
+
+
+// 	return 1;
+// }

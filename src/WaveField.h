@@ -13,8 +13,14 @@
 #include <unordered_map>
 #include <exception>
 #include <sstream>
+#include <cstring>
 #include <streambuf>
 #include "__assert_msg.h"
+
+// #include <Channel.h>
+// #include <FEM_ObjectBroker.h>
+// #include <Vector.h>
+// #include <ID.h>
 
 using std::vector;
 using std::complex;
@@ -31,8 +37,8 @@ using std::stringstream;
 class WaveField
 {
 public:
-	static constexpr double pi = 3.14159265359 ;
-	static constexpr double machina_epsilon = std::numeric_limits<double>::min() ; 
+	const double pi = 3.14159265359 ;
+	const double machina_epsilon = std::numeric_limits<double>::min() ; 
 	typedef	std::vector<std::vector<std::complex<double>>> mat_complex;
 	typedef	std::vector<std::complex<double>> vec_complex;
 
@@ -83,11 +89,16 @@ public:
 
 	int write_wave_at_depth(double depth, string filename_prefix="wave") ;
 
+	pair<vector<double>, vector<double>> time2freq(double time_step, vector<double> const& time_series);
+	
 	int get_Ntime() const;
 	int getTag() const;
 	void setTag(int newTag) ;
-	// int sendself();
-	// int receiveself();
+
+	// int sendSelf( int commitTag, Channel &theChannel);
+	// int receiveSelf(int commitTag, Channel &theChannel, FEM_ObjectBroker
+                      // &theBroker  );
+	
 private:
 	int _theTag;
 	// **************************************
@@ -152,7 +163,7 @@ private:
 		string filename) const;
 	vector<double> integrate_vel(double time_step, vector<double> const& acc);
 	vector<double> integrate_dis(double time_step, vector<double> const& acc, vector<double> const& vel);
-	pair<vector<double>, vector<double>> time2freq(double time_step, vector<double> const& time_series);
+	
 	int depth2layer(double depth);
 	int wave_propagation(double max_freq, int N_freq
 		, std::vector<double> const& Vs
@@ -210,5 +221,8 @@ private:
 		std::vector<std::complex<double> > &vecout);
 	size_t reverseBits(size_t x, int n);
 	string removeComments(string prgm);
-
+	// int send_vector(int commitTag, Channel & theChannel, std::vector<double> const& data, 
+	// 	std::string const& data_name );
+	// int receive_vector(int commitTag, Channel & theChannel, std::vector<double> & data, 
+	// 	std::string const& data_name );
 };
