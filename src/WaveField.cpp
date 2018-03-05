@@ -100,7 +100,7 @@ int WaveField::set_motions(
 	// remove comments
 	cleaned_input = this->removeComments(input);
 	// pass to stringstream
-	ss = stringstream(cleaned_input);
+	ss << stringstream(cleaned_input);
 
 	count = 0;
 	vector<double> displacement ;
