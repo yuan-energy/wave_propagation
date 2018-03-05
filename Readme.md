@@ -1,5 +1,5 @@
 ## Wave Propagation in C++
-This is an implementation of 1D wave propagation in C++.
+This is an implementation of 1D and 3x1D wave propagation in C++.
 
 #### Explanation
 The wave field class builds a wave field according to the input motions and the soil profile properties. 
@@ -33,5 +33,5 @@ cd ../ex2
 **Result: deconvolution **
  ![Deconvolution example](./example/ex1/deconvolution.jpg)
 **Result: upward wave propagation ** 
- ![Upward Wave Propagation example](./example/ex2/upward_wave.jpg)
+ <!-- ![Upward Wave Propagation example](./example/ex2/upward_wave.jpg) -->
  ![Upward Wave Propagation example](./example/ex3/upward_wave.jpg)
