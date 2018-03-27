@@ -100,11 +100,11 @@ int WaveField::set_motions(
 	// remove comments
 	cleaned_input = this->removeComments(input);
 	// pass to stringstream
-	ss << stringstream(cleaned_input);
+	stringstream ssDisp(cleaned_input);
 
 	count = 0;
 	vector<double> displacement ;
-	while(ss >> word){
+	while(ssDisp >> word){
 		if(count&1){
 			displacement.push_back(stof(word));
 		}
@@ -119,6 +119,7 @@ int WaveField::set_motions(
 	for (auto& item: displacement){
 		item *= acc_unit_scale;
 	}
+	ssDisp.flush();
 	the_motionFile.close();
 
 
@@ -233,7 +234,7 @@ int WaveField::set_soil_profile(vector<double> const& Vs
 	_soil_depth.resize(layernum) ;
 	_soil_depth[0] = _soil_thick[0];
 	for(int i=1; i<layernum; ++i){
-		_soil_depth[i] = _soil_thick[i] + _soil_thick[i-1];
+		_soil_depth[i] = _soil_thick[i] + _soil_depth[i-1];
 	}
 	_soil_depth.insert(_soil_depth.begin(), 0);
 	if(fabs(_motion_depth) > machina_epsilon ){
